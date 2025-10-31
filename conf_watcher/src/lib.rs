@@ -1,9 +1,9 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher as nWatcher, event::EventKind};
-use serde::de::{self, DeserializeOwned};
+use serde::de::{DeserializeOwned};
 
 use std::{
     error::Error,
-    fs,
+    fs::{self},
     path::Path,
     sync::{Arc, Mutex, MutexGuard, mpsc::channel},
     time::Duration,
@@ -45,14 +45,21 @@ impl Default for Watcher {
 
 type CallbackFuncType = Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>;
 
+#[derive(Clone, Copy)]
+pub enum FileFormat {
+    Json,
+    Yaml,
+    Toml,
+}
+
 pub struct WatchedFile {
     path: String,
     on_modify: CallbackFuncType,
     on_access: CallbackFuncType,
+    format: FileFormat,
 }
 
 impl WatchedFile {
-    #[allow(dead_code)]
     fn new<T: ToString>(file_path: T) -> Result<Self, Box<dyn std::error::Error>> {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
@@ -99,6 +106,7 @@ impl WatchedFile {
             path: path_str,
             on_modify,
             on_access,
+            format: FileFormat::Json,
         })
     }
 
@@ -143,12 +151,39 @@ impl WatchedFile {
         Ok(toml)
     }
 
+    pub fn read<T: DeserializeOwned>(&self) -> Result<T, Box<dyn Error>> {
+        let data = fs::read_to_string(&self.path)?;
+
+        let value = match self.format {
+            FileFormat::Json => serde_json::from_str(&data)?,
+            FileFormat::Yaml => serde_yaml::from_str(&data)?,
+            FileFormat::Toml => toml::from_str(&data)?,
+        };
+
+        Ok(value)
+    }
+
+    pub fn json(mut self) -> Self{
+        self.format = FileFormat::Json;
+        self
+    }  
+    pub fn yaml(mut self) -> Self{
+        self.format = FileFormat::Yaml;
+        self
+    }
+    pub fn toml(mut self) -> Self{
+        self.format = FileFormat::Toml;
+        self
+    }
+
     pub fn auto_update_from<T>(&self, target: Arc<Mutex<T>>) -> AutoUpdated<T>
     where
         T: DeserializeOwned + Send + 'static,
     {
         let target_clone = Arc::clone(&target);
         let path = self.path.clone();
+        let format = self.format.clone();
+
         self.on_modify(move || {
             let data = match std::fs::read_to_string(&path) {
                 Ok(data) => data,
@@ -159,19 +194,32 @@ impl WatchedFile {
                 }
             };
 
-            let new: T = match serde_json::from_str(&data) {
+           let new: T = match format {
+            FileFormat::Json => match serde_json::from_str(&data) {
                 Ok(v) => v,
-                Err(err) => match err.classify() {
-                    serde_json::error::Category::Eof => {
-                        return;
-                    }
-                    _ => {
-                        #[cfg(debug_assertions)]
-                        eprintln!("Failed to parse JSON from {}: {err}", path);
-                        return;
-                    }
-                },
-            };
+                Err(err) => {
+                    //#[cfg(debug_assertions)]
+                    //eprintln!("Failed to parse JSON from {}: {err}", path);
+                    return;
+                }
+            },
+            FileFormat::Yaml => match serde_yaml::from_str(&data) {
+                Ok(v) => v,
+                Err(err) => {
+                    //#[cfg(debug_assertions)]
+                    //eprintln!("Failed to parse YAML from {}: {err}", path);
+                    return;
+                }
+            },
+            FileFormat::Toml => match toml::from_str(&data) {
+                Ok(v) => v,
+                Err(err) => {
+                    //#[cfg(debug_assertions)]
+                    //eprintln!("Failed to parse TOML from {}: {err}", path);
+                    return;
+                }
+            },
+        };
 
             if let Ok(mut obj) = target_clone.lock() {
                 *obj = new;

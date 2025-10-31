@@ -13,7 +13,8 @@ fn main() {
     println!("Hello, world!");
     let watcher = Watcher::new();
 
-    let fw = watcher.watch("file.json").unwrap();
+    let fw = watcher.watch("file.json").unwrap().json();
+
     fw.on_modify(||{
         println!("File modified");
     });
