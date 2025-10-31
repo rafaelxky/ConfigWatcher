@@ -2,7 +2,7 @@ use notify::{event::EventKind, RecommendedWatcher, RecursiveMode, Watcher as nWa
 use std::{
     fs, path::Path, sync::{Arc, Mutex, mpsc::channel}, time::Duration
 };
-use serde::{de::DeserializeOwned};
+use serde::{Deserialize, de::DeserializeOwned};
 
 pub struct Watcher;
 
@@ -129,25 +129,43 @@ impl WatchedFile {
     }
 
     pub fn to_auto_update<T>(&self, target: T) -> Arc<Mutex<T>>
-        where
-        T: Reloadable + Send + 'static,
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
     {
         let path = self.path.clone();
-        let target = Arc::new(Mutex::new(target));
-        let target_clone = Arc::clone(&target);
-    
+    let target = Arc::new(Mutex::new(target));
+    let target_clone = Arc::clone(&target);
+
         self.on_modify(move || {
-            if let Ok(data) = std::fs::read_to_string(&path) {
-                let mut obj = target_clone.lock().unwrap();
-                if let Err(e) = obj.reload_from_str(&data) {
-                    eprintln!("Failed to reload: {}", e);
+            let data = match std::fs::read_to_string(&path) {
+                Ok(data) => data,
+                Err(err) => {
+                    eprintln!("Failed to read file {}: {err}", path.display());
+                    return;
                 }
+            };
+
+            let new: T = match serde_json::from_str(&data) {
+                Ok(v) => v,
+                Err(err) => {
+                    eprintln!("Failed to parse JSON from {}: {err}", path.display());
+                    return;
+                }
+            };
+
+            if let Ok(mut obj) = target_clone.lock() {
+                *obj = new;
+            } else {
+                eprintln!("Failed to lock shared config object");
             }
         });
-        target
-    }
+    target
+}
+
 }
 
 pub trait Reloadable: Sized {
     fn reload_from_str(&mut self, data: &str) -> Result<(), Box<dyn std::error::Error>>;
 }
+
+// todo: create wrapper class for auto updatable value 

@@ -5,7 +5,7 @@ use conf_watcher_macros::Reloadable;
 use conf_watcher::Reloadable;
 
 // todo: macro for auto update on file update were the struct itself hold the logic to watch a file
-#[derive(Deserialize, Reloadable)]
+#[derive(Deserialize)]
 pub struct Config{
     strng: String,
 }
