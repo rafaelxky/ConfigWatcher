@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "conf_watcher",
+    "conf_watcher_macros",
+]
+
+resolver = "3"
