@@ -1,8 +1,13 @@
-use notify::{event::EventKind, RecommendedWatcher, RecursiveMode, Watcher as nWatcher};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher as nWatcher, event::EventKind};
+use serde::de::DeserializeOwned;
+
 use std::{
-    error::Error, fs, path::Path, sync::{Arc, Mutex, MutexGuard, mpsc::channel}, time::Duration
+    error::Error,
+    fs,
+    path::Path,
+    sync::{Arc, Mutex, MutexGuard, mpsc::channel},
+    time::Duration,
 };
-use serde::{de::DeserializeOwned};
 
 pub struct Watcher;
 
@@ -11,25 +16,39 @@ impl Watcher {
         Watcher
     }
 
-    pub fn watch<T: ToString>(&self, file_path: T) -> Result<WatchedFile, Box<dyn std::error::Error>> {
+    pub fn watch<T: ToString>(
+        &self,
+        file_path: T,
+    ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
         WatchedFile::new(file_path)
     }
 
-    pub fn watched_file_from<T: ToString>(file_path: T) -> Result<WatchedFile, Box<dyn std::error::Error>> {
+    pub fn watched_file_from<T: ToString>(
+        file_path: T,
+    ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
         Self::new().watch(file_path)
     }
 
-    pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(file_path: T) ->  Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
+    pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(
+        file_path: T,
+    ) -> Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
         let wf = Self::watched_file_from(file_path)?;
         let au: Result<AutoUpdated<W>, Box<dyn Error>> = wf.auto_updated();
         au
     }
 }
+impl Default for Watcher {
+    fn default() -> Self {
+        Self
+    }
+}
+
+type CallbackFuncType = Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>;
 
 pub struct WatchedFile {
     path: String,
-    on_modify: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
-    on_access: Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>,
+    on_modify: CallbackFuncType,
+    on_access: CallbackFuncType,
 }
 
 impl WatchedFile {
@@ -37,13 +56,12 @@ impl WatchedFile {
     fn new<T: ToString>(file_path: T) -> Result<Self, Box<dyn std::error::Error>> {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
-        let on_access= Arc::new(Mutex::new(None));
+        let on_access = Arc::new(Mutex::new(None));
 
         let (tx, rx) = channel();
         let mut watcher = RecommendedWatcher::new(
             tx,
-            notify::Config::default()
-            .with_poll_interval(Duration::from_millis(1000)),
+            notify::Config::default().with_poll_interval(Duration::from_millis(1000)),
         )?;
 
         watcher.watch(Path::new(&path_str), RecursiveMode::NonRecursive)?;
@@ -62,15 +80,17 @@ impl WatchedFile {
                             if let Some(on_modify) = guard.as_deref() {
                                 (on_modify as &(dyn Fn() + Send + 'static))();
                             }
-                        },
+                        }
                         EventKind::Access(_) => {
                             let guard = on_access_clone.lock().unwrap();
                             if let Some(on_access) = guard.as_deref() {
                                 (on_access as &(dyn Fn() + Send + 'static))();
                             }
-                        },
+                        }
                         _ => (),
                     }
+                } else {
+                    continue;
                 }
             }
         });
@@ -100,7 +120,7 @@ impl WatchedFile {
         &self.path
     }
 
-    pub fn read_string (&self) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn read_string(&self) -> Result<String, Box<dyn std::error::Error>> {
         let data = fs::read_to_string(&self.path)?;
         Ok(data)
     }
@@ -130,7 +150,6 @@ impl WatchedFile {
         let target_clone = Arc::clone(&target);
         let path = self.path.clone();
         self.on_modify(move || {
-            
             let data = match std::fs::read_to_string(&path) {
                 Ok(data) => data,
                 Err(err) => {
@@ -145,22 +164,22 @@ impl WatchedFile {
                 Err(err) => match err.classify() {
                     serde_json::error::Category::Eof => {
                         return;
-                    }, 
+                    }
                     _ => {
                         #[cfg(debug_assertions)]
                         eprintln!("Failed to parse JSON from {}: {err}", path);
                         return;
                     }
-                }
+                },
             };
 
             if let Ok(mut obj) = target_clone.lock() {
-                    *obj = new;
-                } else {
-                    #[cfg(debug_assertions)]
-                    eprintln!("Failed to lock shared config object");
-                }
-            });
+                *obj = new;
+            } else {
+                #[cfg(debug_assertions)]
+                eprintln!("Failed to lock shared config object");
+            }
+        });
         AutoUpdated::wrap(target)
     }
 
@@ -173,8 +192,8 @@ impl WatchedFile {
     }
 
     pub fn auto_updated<T>(&self) -> Result<AutoUpdated<T>, Box<dyn Error>>
-        where
-            T: serde::de::DeserializeOwned + Send + 'static,
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
     {
         let target: T = self.read_json()?;
         let au = self.auto_update(target);
@@ -182,30 +201,26 @@ impl WatchedFile {
     }
 }
 
-
-
 pub trait Reloadable: Sized {
     fn reload_from_str(&mut self, data: &str) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-// todo: create wrapper class for auto updatable value 
-pub struct AutoUpdated<T: DeserializeOwned>{
+// todo: create wrapper class for auto updatable value
+pub struct AutoUpdated<T: DeserializeOwned> {
     wrapped: Arc<Mutex<T>>,
 }
-impl<T: DeserializeOwned> AutoUpdated<T>{
-    pub fn new(wrapped: T) -> Self{
+impl<T: DeserializeOwned> AutoUpdated<T> {
+    pub fn new(wrapped: T) -> Self {
         Self {
             wrapped: Arc::new(Mutex::new(wrapped)),
         }
     }
-    pub fn wrap(wrapped: Arc<Mutex<T>>) -> Self{
-        Self {
-            wrapped
-        }
+    pub fn wrap(wrapped: Arc<Mutex<T>>) -> Self {
+        Self { wrapped }
     }
     pub fn get(&self) -> MutexGuard<'_, T> {
         self.wrapped.lock().expect("Error: lock poisoned!")
-    } 
+    }
     pub fn try_get(&self) -> Option<std::sync::MutexGuard<'_, T>> {
         self.wrapped.try_lock().ok()
     }
@@ -220,7 +235,6 @@ impl<T: DeserializeOwned> AutoUpdated<T>{
         let guard = self.get();
         f(&*guard)
     }
-
 }
 
 impl<T: std::fmt::Debug + DeserializeOwned> std::fmt::Debug for AutoUpdated<T> {
