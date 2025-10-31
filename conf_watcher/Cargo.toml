@@ -3,6 +3,13 @@ name = "conf_watcher"
 version = "0.1.0"
 edition = "2024"
 
+description = "A library for auto-reloading configuration files in Rust"
+license = "MIT"
+repository = "https://github.com/rafaelxky/conf_watcher"
+readme = "README.md"
+keywords = ["config", "watcher", "hot-reload"]
+categories = ["development-tools", "configuration"]
+
 [dependencies]
 notify = "8.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
