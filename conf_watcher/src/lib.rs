@@ -2,7 +2,7 @@ use notify::{event::EventKind, RecommendedWatcher, RecursiveMode, Watcher as nWa
 use std::{
     error::Error, fs, path::Path, sync::{Arc, Mutex, MutexGuard, mpsc::channel}, time::Duration
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned};
 
 pub struct Watcher;
 
@@ -13,6 +13,16 @@ impl Watcher {
 
     pub fn watch<T: ToString>(&self, file_path: T) -> Result<WatchedFile, Box<dyn std::error::Error>> {
         WatchedFile::new(file_path)
+    }
+
+    pub fn watched_file_from<T: ToString>(file_path: T) -> Result<WatchedFile, Box<dyn std::error::Error>> {
+        Self::new().watch(file_path)
+    }
+
+    pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(file_path: T) ->  Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
+        let wf = Self::watched_file_from(file_path)?;
+        let au: Result<AutoUpdated<W>, Box<dyn Error>> = wf.auto_updated();
+        au
     }
 }
 
@@ -120,9 +130,11 @@ impl WatchedFile {
         let target_clone = Arc::clone(&target);
         let path = self.path.clone();
         self.on_modify(move || {
+            
             let data = match std::fs::read_to_string(&path) {
                 Ok(data) => data,
                 Err(err) => {
+                    #[cfg(debug_assertions)]
                     eprintln!("Failed to read file {}: {err}", path);
                     return;
                 }
@@ -130,15 +142,22 @@ impl WatchedFile {
 
             let new: T = match serde_json::from_str(&data) {
                 Ok(v) => v,
-                Err(err) => {
-                    eprintln!("Failed to parse JSON from {}: {err}", path);
-                    return;
+                Err(err) => match err.classify() {
+                    serde_json::error::Category::Eof => {
+                        return;
+                    }, 
+                    _ => {
+                        #[cfg(debug_assertions)]
+                        eprintln!("Failed to parse JSON from {}: {err}", path);
+                        return;
+                    }
                 }
             };
 
             if let Ok(mut obj) = target_clone.lock() {
                     *obj = new;
                 } else {
+                    #[cfg(debug_assertions)]
                     eprintln!("Failed to lock shared config object");
                 }
             });
@@ -192,5 +211,23 @@ impl<T: DeserializeOwned> AutoUpdated<T>{
     }
     pub fn shared(&self) -> Arc<Mutex<T>> {
         self.wrapped.clone()
+    }
+
+    pub fn with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&T) -> R,
+    {
+        let guard = self.get();
+        f(&*guard)
+    }
+
+}
+
+impl<T: std::fmt::Debug + DeserializeOwned> std::fmt::Debug for AutoUpdated<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.try_get() {
+            Some(v) => f.debug_tuple("AutoUpdated").field(&*v).finish(),
+            None => f.write_str("AutoUpdated(<locked>)"),
+        }
     }
 }
