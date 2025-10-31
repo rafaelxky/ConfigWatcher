@@ -3,7 +3,7 @@ use serde::de::{DeserializeOwned};
 
 use std::{
     error::Error,
-    fs::{self},
+    fs::{self, File},
     path::Path,
     sync::{Arc, Mutex, MutexGuard, mpsc::channel},
     time::Duration,
@@ -30,9 +30,9 @@ impl Watcher {
     }
 
     pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(
-        file_path: T,
+        file_path: T, file_format: FileFormat
     ) -> Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
-        let wf = Self::watched_file_from(file_path)?;
+        let wf = Self::watched_file_from(file_path)?.format(file_format);
         let au: Result<AutoUpdated<W>, Box<dyn Error>> = wf.auto_updated();
         au
     }
@@ -175,6 +175,10 @@ impl WatchedFile {
         self.format = FileFormat::Toml;
         self
     }
+    pub fn format(mut self, format: FileFormat) -> Self{
+        self.format = format;
+        self
+    }
 
     pub fn auto_update_from<T>(&self, target: Arc<Mutex<T>>) -> AutoUpdated<T>
     where
@@ -243,7 +247,7 @@ impl WatchedFile {
     where
         T: serde::de::DeserializeOwned + Send + 'static,
     {
-        let target: T = self.read_json()?;
+        let target: T = self.read()?;
         let au = self.auto_update(target);
         Ok(au)
     }

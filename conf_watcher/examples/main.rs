@@ -18,6 +18,7 @@ fn main() {
     fw.on_modify(||{
         println!("File modified");
     });
+
     fw.on_access(||{
         println!("File accessed!");
     });
@@ -25,9 +26,8 @@ fn main() {
     let json: Config = fw.read_json().unwrap();
     let new_json: AutoUpdated<Config> = fw.auto_update(json);
     let au:AutoUpdated<Config>  = fw.auto_updated().unwrap();
-    
 
-    //let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json").unwrap();
+    let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json", conf_watcher::FileFormat::Json).unwrap();
 
     loop {
         thread::sleep(Duration::from_millis(500));
