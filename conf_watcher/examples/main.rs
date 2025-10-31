@@ -9,7 +9,7 @@ pub struct Config {
 }
 
 fn main() {
-    /*
+    
     println!("Hello, world!");
     let watcher = Watcher::new();
 
@@ -23,10 +23,10 @@ fn main() {
 
     let json: Config = fw.read_json().unwrap();
     let new_json: AutoUpdated<Config> = fw.auto_update(json);
-    let created_json:AutoUpdated<Config>  = fw.auto_updated().unwrap();
-    */
+    let au:AutoUpdated<Config>  = fw.auto_updated().unwrap();
+    
 
-    let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json").unwrap();
+    //let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json").unwrap();
 
     loop {
         thread::sleep(Duration::from_millis(500));

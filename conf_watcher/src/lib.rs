@@ -1,5 +1,5 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher as nWatcher, event::EventKind};
-use serde::de::DeserializeOwned;
+use serde::de::{self, DeserializeOwned};
 
 use std::{
     error::Error,
