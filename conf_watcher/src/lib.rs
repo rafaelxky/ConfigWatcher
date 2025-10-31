@@ -115,27 +115,10 @@ impl WatchedFile {
 
     pub fn auto_update_from<T>(&self, target: Arc<Mutex<T>>) -> AutoUpdated<T>
     where
-        T: Reloadable + Send + 'static,
+        T: DeserializeOwned + Send + 'static,
     {
-        let path = self.path.clone();
-        self.on_modify(move || {
-            if let Ok(data) = std::fs::read_to_string(&path) {
-                let mut obj = target.lock().unwrap();
-                if let Err(e) = obj.reload_from_str(&data) {
-                    eprintln!("Failed to reload: {}", e);
-                }
-            }
-        });
-    }
-
-    pub fn auto_update<T>(&self, target: T) -> AutoUpdated<T>
-    where
-        T: serde::de::DeserializeOwned + Send + 'static,
-    {
-        let path = self.path.clone();
-        let target = Arc::new(Mutex::new(target));
-
         let target_clone = Arc::clone(&target);
+        let path = self.path.clone();
         self.on_modify(move || {
             let data = match std::fs::read_to_string(&path) {
                 Ok(data) => data,
@@ -160,6 +143,14 @@ impl WatchedFile {
                 }
             });
         AutoUpdated::wrap(target)
+    }
+
+    pub fn auto_update<T>(&self, target: T) -> AutoUpdated<T>
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
+    {
+        let target = Arc::new(Mutex::new(target));
+        self.auto_update_from(target)
     }
 
     pub fn auto_updated<T>(&self) -> Result<AutoUpdated<T>, Box<dyn Error>>
