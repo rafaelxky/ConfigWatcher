@@ -1,5 +1,6 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher as nWatcher, event::EventKind};
 use serde::de::{DeserializeOwned};
+use std::cell::RefCell;
 use std::{
     error::Error,
     fs::{self},
@@ -15,7 +16,7 @@ pub struct WatchedFile {
     path: String,
     on_modify: CallbackFuncType,
     on_access: CallbackFuncType,
-    on_update: CallbackFuncType,
+    on_update: RefCell<Option<Box<dyn Fn() + Send + 'static>>>,
     format: FileFormat,
 }
 
@@ -24,7 +25,7 @@ impl WatchedFile {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
         let on_access = Arc::new(Mutex::new(None));
-        let on_update = Arc::new(Mutex::new(None));
+        let on_update = RefCell::new(None);
 
         let (tx, rx) = channel();
         let mut watcher = RecommendedWatcher::new(
@@ -77,13 +78,13 @@ impl WatchedFile {
           path: file_path.to_string(),  
           on_access: Arc::new(Mutex::new(None)),
           on_modify: Arc::new(Mutex::new(None)),
-          on_update: Arc::new(Mutex::new(None)),
+          on_update: RefCell::new(None),
           format: FileFormat::Json,
         })
     }
 
     pub fn update(&self){
-        if let Some(callback) = &*self.on_update.lock().unwrap() {
+        if let Some(callback) = &*self.on_update.borrow() {
             callback();
         }
     }
@@ -106,10 +107,8 @@ impl WatchedFile {
     where
         F: Fn() + Send + 'static,
     {
-        *self.on_update.lock().unwrap() = Some(Box::new(callback));
+        *self.on_update.borrow_mut() = Some(Box::new(callback));
     }
-
-    
 
     pub fn path(&self) -> &str {
         &self.path
