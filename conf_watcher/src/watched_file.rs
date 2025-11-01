@@ -102,6 +102,15 @@ impl WatchedFile {
         *self.on_access.lock().unwrap() = Some(Box::new(callback));
     }
 
+    pub fn on_update<F>(&self, callback: F)
+    where
+        F: Fn() + Send + 'static,
+    {
+        *self.on_update.lock().unwrap() = Some(Box::new(callback));
+    }
+
+    
+
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -206,6 +215,56 @@ impl WatchedFile {
         });
         AutoUpdated::wrap(target)
     }
+
+    pub fn manual_update_from<T>(&self, target: Arc<Mutex<T>>) -> AutoUpdated<T>
+    where
+        T: DeserializeOwned + Send + 'static,
+    {
+        let target_clone = Arc::clone(&target);
+        let path = self.path.clone();
+        let format = self.format.clone();
+
+        self.on_update(move || {
+            let data = match std::fs::read_to_string(&path) {
+                Ok(data) => data,
+                Err(err) => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("Failed to read file {}: {err}", path);
+                    return;
+                }
+            };
+
+           let new: T = match format {
+            FileFormat::Json => match serde_json::from_str(&data) {
+                Ok(v) => v,
+                Err(_err) => {
+                    return;
+                }
+            },
+            FileFormat::Yaml => match serde_yaml::from_str(&data) {
+                Ok(v) => v,
+                Err(_err) => {
+                    return;
+                }
+            },
+            FileFormat::Toml => match toml::from_str(&data) {
+                Ok(v) => v,
+                Err(_err) => {
+                    return;
+                }
+            },
+        };
+
+            if let Ok(mut obj) = target_clone.lock() {
+                *obj = new;
+            } else {
+                #[cfg(debug_assertions)]
+                eprintln!("Failed to lock shared config object");
+            }
+        });
+        AutoUpdated::wrap(target)
+    }
+
 
     pub fn auto_update<T>(&self, target: T) -> AutoUpdated<T>
     where
