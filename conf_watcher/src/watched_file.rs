@@ -161,24 +161,18 @@ impl WatchedFile {
             FileFormat::Json => match serde_json::from_str(&data) {
                 Ok(v) => v,
                 Err(_err) => {
-                    //#[cfg(debug_assertions)]
-                    //eprintln!("Failed to parse JSON from {}: {err}", path);
                     return;
                 }
             },
             FileFormat::Yaml => match serde_yaml::from_str(&data) {
                 Ok(v) => v,
                 Err(_err) => {
-                    //#[cfg(debug_assertions)]
-                    //eprintln!("Failed to parse YAML from {}: {err}", path);
                     return;
                 }
             },
             FileFormat::Toml => match toml::from_str(&data) {
                 Ok(v) => v,
                 Err(_err) => {
-                    //#[cfg(debug_assertions)]
-                    //eprintln!("Failed to parse TOML from {}: {err}", path);
                     return;
                 }
             },
