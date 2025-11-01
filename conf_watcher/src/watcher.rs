@@ -4,6 +4,7 @@ use std::{
 use serde::de::{DeserializeOwned};
 use crate::{auto_updated::AutoUpdated, watched_file::*};
 use crate::file_format::FileFormat;
+use std::cell::RefCell;
 
 pub enum UpdateType{
     Manual,
@@ -11,18 +12,18 @@ pub enum UpdateType{
 }
 
 pub struct Watcher{
-    update_type: UpdateType,
+    update_type: RefCell<UpdateType>,
 }
 
 impl Watcher {
     pub fn new() -> Self {
         Watcher{
-            update_type: UpdateType::Automatic,
+            update_type: RefCell::new(UpdateType::Automatic),
         }
     }
 
-    pub fn update_type(mut self ,update_type: UpdateType) -> Self {
-        self.update_type = update_type;
+    pub fn update_type(self ,update_type: UpdateType) -> Self {
+        *self.update_type.borrow_mut() = update_type;
         self
     }
 
@@ -30,7 +31,10 @@ impl Watcher {
         &self,
         file_path: T,
     ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
-        WatchedFile::new(file_path)
+        match *self.update_type.borrow() {
+            UpdateType::Manual => WatchedFile::new(file_path),
+            UpdateType::Automatic => WatchedFile::new_manual(file_path),
+        }
     }
 
     pub fn watched_file_from<T: ToString>(
@@ -50,7 +54,7 @@ impl Watcher {
 impl Default for Watcher {
     fn default() -> Self {
         Self {
-            update_type: UpdateType::Automatic,
+            update_type: RefCell::new(UpdateType::Automatic),
         }
     }
 }

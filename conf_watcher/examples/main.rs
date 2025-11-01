@@ -33,5 +33,6 @@ fn main() {
     loop {
         thread::sleep(Duration::from_millis(500));
         println!("Json - {}", au.get().strng);
+        
     }
 }
