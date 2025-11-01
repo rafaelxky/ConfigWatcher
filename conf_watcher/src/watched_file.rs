@@ -16,7 +16,7 @@ pub struct WatchedFile {
     path: String,
     on_modify: CallbackFuncType,
     on_access: CallbackFuncType,
-    on_update: RefCell<Option<Box<dyn Fn() + Send + 'static>>>,
+    on_update: CallbackFuncType,
     format: FileFormat,
 }
 
@@ -25,7 +25,7 @@ impl WatchedFile {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
         let on_access = Arc::new(Mutex::new(None));
-        let on_update = RefCell::new(None);
+        let on_update = Arc::new(Mutex::new(None));
 
         let (tx, rx) = channel();
         let mut watcher = RecommendedWatcher::new(
@@ -78,13 +78,13 @@ impl WatchedFile {
           path: file_path.to_string(),  
           on_access: Arc::new(Mutex::new(None)),
           on_modify: Arc::new(Mutex::new(None)),
-          on_update: RefCell::new(None),
+          on_update:  Arc::new(Mutex::new(None)),
           format: FileFormat::Json,
         })
     }
 
     pub fn update(&self){
-        if let Some(callback) = &*self.on_update.borrow() {
+        if let Some(callback) = &*self.on_update.lock().unwrap() {
             callback();
         }
     }
@@ -107,7 +107,7 @@ impl WatchedFile {
     where
         F: Fn() + Send + 'static,
     {
-        *self.on_update.borrow_mut() = Some(Box::new(callback));
+        *self.on_update.lock().unwrap() = Some(Box::new(callback));
     }
 
     pub fn path(&self) -> &str {
@@ -184,26 +184,26 @@ impl WatchedFile {
                 }
             };
 
-           let new: T = match format {
-            FileFormat::Json => match serde_json::from_str(&data) {
-                Ok(v) => v,
-                Err(_err) => {
-                    return;
-                }
-            },
-            FileFormat::Yaml => match serde_yaml::from_str(&data) {
-                Ok(v) => v,
-                Err(_err) => {
-                    return;
-                }
-            },
-            FileFormat::Toml => match toml::from_str(&data) {
-                Ok(v) => v,
-                Err(_err) => {
-                    return;
-                }
-            },
-        };
+            let new: T = match format {
+                FileFormat::Json => match serde_json::from_str(&data) {
+                    Ok(v) => v,
+                    Err(_err) => {
+                        return;
+                    }
+                },
+                FileFormat::Yaml => match serde_yaml::from_str(&data) {
+                    Ok(v) => v,
+                    Err(_err) => {
+                        return;
+                    }
+                },
+                FileFormat::Toml => match toml::from_str(&data) {
+                    Ok(v) => v,
+                    Err(_err) => {
+                        return;
+                    }
+                },
+            };
 
             if let Ok(mut obj) = target_clone.lock() {
                 *obj = new;
@@ -212,6 +212,7 @@ impl WatchedFile {
                 eprintln!("Failed to lock shared config object");
             }
         });
+
         AutoUpdated::wrap(target)
     }
 

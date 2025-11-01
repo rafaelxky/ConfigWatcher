@@ -37,6 +37,20 @@ impl Watcher {
         }
     }
 
+    pub fn watch_manual<T: ToString>(
+        &self,
+        file_path: T,
+    ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
+         WatchedFile::new_manual(file_path)
+    }
+
+    pub fn watch_automatic<T: ToString>(
+        &self,
+        file_path: T,
+    ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
+         WatchedFile::new(file_path)
+    }
+
     pub fn watched_file_from<T: ToString>(
         file_path: T,
     ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
