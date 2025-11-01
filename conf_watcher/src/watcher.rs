@@ -5,11 +5,25 @@ use serde::de::{DeserializeOwned};
 use crate::{auto_updated::AutoUpdated, watched_file::*};
 use crate::file_format::FileFormat;
 
-pub struct Watcher;
+pub enum UpdateType{
+    Manual,
+    Automatic,
+}
+
+pub struct Watcher{
+    update_type: UpdateType,
+}
 
 impl Watcher {
     pub fn new() -> Self {
-        Watcher
+        Watcher{
+            update_type: UpdateType::Automatic,
+        }
+    }
+
+    pub fn update_type(mut self ,update_type: UpdateType) -> Self {
+        self.update_type = update_type;
+        self
     }
 
     pub fn watch<T: ToString>(
@@ -28,13 +42,15 @@ impl Watcher {
     pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(
         file_path: T, file_format: FileFormat
     ) -> Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
-        let wf = Self::watched_file_from(file_path)?.format(file_format);
-        let au: Result<AutoUpdated<W>, Box<dyn Error>> = wf.auto_updated();
-        au
+        let watched_file: WatchedFile = Self::watched_file_from(file_path)?.format(file_format);
+        let auto_updated_value: Result<AutoUpdated<W>, Box<dyn Error>> = watched_file.auto_updated();
+        auto_updated_value
     }
 }
 impl Default for Watcher {
     fn default() -> Self {
-        Self
+        Self {
+            update_type: UpdateType::Automatic,
+        }
     }
 }

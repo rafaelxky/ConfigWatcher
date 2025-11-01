@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use std::{thread, time::Duration};
 use conf_watcher::{auto_updated::AutoUpdated, watcher::Watcher, file_format::FileFormat};
+use conf_watcher::watched_file::WatchedFile;
+use conf_watcher::watcher::UpdateType;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -10,9 +12,8 @@ pub struct Config {
 fn main() {
     
     println!("Hello, world!");
-    let watcher = Watcher::new();
-
-    let fw = watcher.watch("file.json").unwrap().json();
+    let watcher: Watcher = Watcher::new().update_type(UpdateType::Manual);
+    let fw: WatchedFile = watcher.watch("file.json").unwrap().json();
 
     fw.on_modify(||{
         println!("File modified");
@@ -27,6 +28,7 @@ fn main() {
     let au:AutoUpdated<Config>  = fw.auto_updated().unwrap();
 
     let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json", FileFormat::Json).unwrap();
+    fw.update();
 
     loop {
         thread::sleep(Duration::from_millis(500));

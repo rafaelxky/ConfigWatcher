@@ -15,6 +15,7 @@ pub struct WatchedFile {
     path: String,
     on_modify: CallbackFuncType,
     on_access: CallbackFuncType,
+    on_update: CallbackFuncType,
     format: FileFormat,
 }
 
@@ -23,6 +24,7 @@ impl WatchedFile {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
         let on_access = Arc::new(Mutex::new(None));
+        let on_update = Arc::new(Mutex::new(None));
 
         let (tx, rx) = channel();
         let mut watcher = RecommendedWatcher::new(
@@ -65,8 +67,25 @@ impl WatchedFile {
             path: path_str,
             on_modify,
             on_access,
+            on_update,
             format: FileFormat::Json,
         })
+    }
+
+    pub fn new_manual<T: ToString>(file_path: T) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self {
+          path: file_path.to_string(),  
+          on_access: Arc::new(Mutex::new(None)),
+          on_modify: Arc::new(Mutex::new(None)),
+          on_update: Arc::new(Mutex::new(None)),
+          format: FileFormat::Json,
+        })
+    }
+
+    pub fn update(&self){
+        if let Some(callback) = &*self.on_update.lock().unwrap() {
+            callback();
+        }
     }
 
     pub fn on_modify<F>(&self, callback: F)
@@ -201,7 +220,7 @@ impl WatchedFile {
         T: serde::de::DeserializeOwned + Send + 'static,
     {
         let target: T = self.read()?;
-        let au = self.auto_update(target);
+        let au: AutoUpdated<T> = self.auto_update(target);
         Ok(au)
     }
 }
