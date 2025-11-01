@@ -1,8 +1,7 @@
-use conf_watcher::{AutoUpdated, Watcher};
 use serde::Deserialize;
 use std::{thread, time::Duration};
+use conf_watcher::{auto_updated::AutoUpdated, watcher::Watcher, file_format::FileFormat};
 
-// todo: macro for auto update on file update were the struct itself hold the logic to watch a file
 #[derive(Deserialize)]
 pub struct Config {
     strng: String,
@@ -27,7 +26,7 @@ fn main() {
     let new_json: AutoUpdated<Config> = fw.auto_update(json);
     let au:AutoUpdated<Config>  = fw.auto_updated().unwrap();
 
-    let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json", conf_watcher::FileFormat::Json).unwrap();
+    let au: AutoUpdated<Config> = Watcher::auto_updated_from("file.json", FileFormat::Json).unwrap();
 
     loop {
         thread::sleep(Duration::from_millis(500));
