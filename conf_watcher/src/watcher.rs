@@ -46,10 +46,19 @@ impl Watcher {
     pub fn auto_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(
         file_path: T, file_format: FileFormat
     ) -> Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
-        let watched_file: WatchedFile = Self::watched_file_from(file_path)?.format(file_format);
+        let watched_file: WatchedFile = WatchedFile::new(file_path)?.format(file_format);
         let auto_updated_value: Result<AutoUpdated<W>, Box<dyn Error>> = watched_file.auto_updated();
         auto_updated_value
     }
+
+    pub fn manual_updated_from<T: ToString, W: DeserializeOwned + Send + 'static>(
+        file_path: T, file_format: FileFormat
+    ) -> Result<AutoUpdated<W>, Box<dyn std::error::Error>> {
+        let watched_file: WatchedFile = WatchedFile::new_manual(file_path)?.format(file_format);
+        let auto_updated_value: Result<AutoUpdated<W>, Box<dyn Error>> = watched_file.auto_updated();
+        auto_updated_value
+    }
+
 }
 impl Default for Watcher {
     fn default() -> Self {

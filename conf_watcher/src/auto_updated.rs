@@ -6,6 +6,7 @@ use std::{
 pub struct AutoUpdated<T: DeserializeOwned> {
     wrapped: Arc<Mutex<T>>,
 }
+
 impl<T: DeserializeOwned> AutoUpdated<T> {
     pub fn new(wrapped: T) -> Self {
         Self {

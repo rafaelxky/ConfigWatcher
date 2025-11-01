@@ -273,6 +273,14 @@ impl WatchedFile {
         self.auto_update_from(target)
     }
 
+    pub fn manual_update<T>(&self, target: T) -> AutoUpdated<T>
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
+    {
+        let target = Arc::new(Mutex::new(target));
+        self.manual_update_from(target)
+    }
+
     pub fn auto_updated<T>(&self) -> Result<AutoUpdated<T>, Box<dyn Error>>
     where
         T: serde::de::DeserializeOwned + Send + 'static,
@@ -281,4 +289,14 @@ impl WatchedFile {
         let au: AutoUpdated<T> = self.auto_update(target);
         Ok(au)
     }
+
+    pub fn manual_updated<T>(&self) -> Result<AutoUpdated<T>, Box<dyn Error>>
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
+    {
+        let target: T = self.read()?;
+        let au: AutoUpdated<T> = self.manual_update(target);
+        Ok(au)
+    }
+
 }
