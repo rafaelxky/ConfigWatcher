@@ -277,7 +277,7 @@ impl WatchedFile {
     where
         T: serde::de::DeserializeOwned + Send + 'static,
     {
-        let target = Arc::new(Mutex::new(target));
+        let target: Arc<Mutex<T>> = Arc::new(Mutex::new(target));
         self.manual_update_from(target)
     }
 

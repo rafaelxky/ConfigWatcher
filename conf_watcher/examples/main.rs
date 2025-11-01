@@ -25,10 +25,10 @@ fn main() {
 
     let json: Config = fw.read_json().unwrap();
     let new_json: AutoUpdated<Config> = fw.auto_update(json);
-    
+
     let au:AutoUpdated<Config>  = fw.manual_updated().unwrap();
 
-    //let au: AutoUpdated<Config> = Watcher::manual_updated_from("file.json", FileFormat::Json).unwrap();
+    let (au, wf): (AutoUpdated<Config>, WatchedFile) = Watcher::manual_updated_from("file.json", FileFormat::Json).unwrap();
     fw.update();
 
     loop {
