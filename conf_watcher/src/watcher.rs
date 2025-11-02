@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::{
     error::Error,
 };
@@ -5,6 +6,7 @@ use serde::de::{DeserializeOwned};
 use crate::{auto_updated::AutoUpdated, watched_file::*};
 use crate::file_format::FileFormat;
 use std::cell::RefCell;
+use std::fs::read_to_string;
 
 pub enum UpdateType{
     Manual,
@@ -13,17 +15,38 @@ pub enum UpdateType{
 
 pub struct Watcher{
     update_type: RefCell<UpdateType>,
+    read: Option<Box<dyn Fn(&dyn ToString) -> String>>,
 }
 
 impl Watcher {
     pub fn new() -> Self {
         Watcher{
             update_type: RefCell::new(UpdateType::Automatic),
+            read: None,
         }
     }
 
-    pub fn update_type(self ,update_type: UpdateType) -> Self {
-        *self.update_type.borrow_mut() = update_type;
+    #[cfg(feature = "json")]
+    pub fn json(self) -> Self{
+        *self.file_format.borrow_mut() = |path: &str| -> String {
+            let data = read_to_string(path);
+        };
+        self
+    }
+
+    #[cfg(feature = "yaml")]
+    pub fn yaml(self) -> Self{
+        *self.file_format.borrow_mut() = FileFormat::Yaml;
+        self
+    }
+
+    #[cfg(feature = "toml")]
+    pub fn toml(self) -> Self{
+        *self.file_format.borrow_mut() = FileFormat::Toml;
+        self
+    }
+    pub fn manual(self) -> Self{
+        *self.update_type.borrow_mut() = UpdateType::Manual;
         self
     }
 
@@ -31,10 +54,7 @@ impl Watcher {
         &self,
         file_path: T,
     ) -> Result<WatchedFile, Box<dyn std::error::Error>> {
-        match *self.update_type.borrow() {
-            UpdateType::Manual => WatchedFile::new(file_path),
-            UpdateType::Automatic => WatchedFile::new_manual(file_path),
-        }
+        WatchedFile::new(file_path, self.file_format.borrow(), self.update_type.borrow())
     }
 
     pub fn watch_manual<T: ToString>(

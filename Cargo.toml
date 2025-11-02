@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "conf_watcher",
+    "conf_watcher", "conf_watcher_v2",
 ]
 
 resolver = "3"

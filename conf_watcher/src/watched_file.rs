@@ -1,6 +1,7 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher as nWatcher, event::EventKind};
 use serde::de::{DeserializeOwned};
 use std::cell::RefCell;
+use std::fs::File;
 use std::{
     error::Error,
     fs::{self},
@@ -8,6 +9,8 @@ use std::{
     sync::{Arc, Mutex, mpsc::channel},
     time::Duration,
 };
+use crate::file_format;
+use crate::watcher::UpdateType;
 use crate::{auto_updated::AutoUpdated, file_format::FileFormat};
 
 type CallbackFuncType = Arc<Mutex<Option<Box<dyn Fn() + Send + 'static>>>>;
@@ -17,11 +20,19 @@ pub struct WatchedFile {
     on_modify: CallbackFuncType,
     on_access: CallbackFuncType,
     on_update: CallbackFuncType,
+    read: Option<Box<dyn Fn(&dyn ToString) -> String>>,
     format: FileFormat,
 }
 
 impl WatchedFile {
-    pub fn new<T: ToString>(file_path: T) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new<T: ToString>(file_path: T, read: Box<dyn Fn(&dyn ToString) -> String>, update_type: UpdateType) -> Result<Self, Box<dyn std::error::Error>> {
+        match update_type {
+            UpdateType::Automatic => return WatchedFile::new_auto(file_path, read),
+            UpdateType::Manual => return WatchedFile::new_manual(file_path, read),
+        };
+    }
+
+    pub fn new_auto<T: ToString>(file_path: T, read: Box<dyn Fn(&dyn ToString) -> String>) -> Result<Self, Box<dyn std::error::Error>> {
         let path_str = file_path.to_string();
         let on_modify = Arc::new(Mutex::new(None));
         let on_access = Arc::new(Mutex::new(None));
@@ -70,16 +81,18 @@ impl WatchedFile {
             on_access,
             on_update,
             format: FileFormat::Json,
+            read: Some(read)
         })
     }
 
-    pub fn new_manual<T: ToString>(file_path: T) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new_manual<T: ToString>(file_path: T, read: Box<dyn Fn(&dyn ToString) -> String>) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
           path: file_path.to_string(),  
           on_access: Arc::new(Mutex::new(None)),
           on_modify: Arc::new(Mutex::new(None)),
           on_update:  Arc::new(Mutex::new(None)),
           format: FileFormat::Json,
+          read: Some(read)
         })
     }
 
@@ -148,7 +161,8 @@ impl WatchedFile {
 
         Ok(value)
     }
-
+    
+    #[cfg(feature = "json")]
     pub fn json(mut self) -> Self{
         self.format = FileFormat::Json;
         self
@@ -161,10 +175,12 @@ impl WatchedFile {
         self.format = FileFormat::Toml;
         self
     }
+    /* 
     pub fn format(mut self, format: FileFormat) -> Self{
         self.format = format;
         self
     }
+    */
 
     pub fn auto_update_from<T>(&self, target: Arc<Mutex<T>>) -> AutoUpdated<T>
     where

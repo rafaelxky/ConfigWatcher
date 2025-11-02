@@ -31,6 +31,8 @@ fn main() {
     let (au, wf): (AutoUpdated<Config>, WatchedFile) = Watcher::manual_updated_from("file.json", FileFormat::Json).unwrap();
     fw.update();
 
+    let dwad = Watcher::new().json().watch("File").unwrap();
+
     loop {
         thread::sleep(Duration::from_millis(500));
         println!("Json - {}", au.get().strng);
